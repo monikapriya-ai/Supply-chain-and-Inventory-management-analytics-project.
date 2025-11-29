@@ -1,0 +1,367 @@
+USE INVENTORY;
+
+-- TOTAL ORDERS
+SELECT COUNT(`Order Number`) AS TOTAL_ORDERS FROM `f_sales(sql)`;
+
+
+-- TOTAL COST 
+SELECT CONCAT("$ ", ROUND(SUM(`Cost Amount`),2)) AS TOTAL_COST FROM `f_point_of_sale(sql)`;
+
+-- TOTAL PROFIT
+SELECT CONCAT("$ ", ROUND(SUM(`Sales Amount`-`Cost Amount`),2)) AS TOTAL_PROFIT FROM `f_point_of_sale(sql)`;
+
+
+-- TOTAL SALES REVENUE
+SELECT CONCAT("$ ",SUM(`Sales Amount`)) AS TOTAL_SALES FROM `f_point_of_sale(sql)`;
+
+
+-- --------------------------------------------MTD 
+SELECT SUM(P.`Sales Amount`) AS MTD_Sales
+FROM `f_point_of_sale(sql)` P
+JOIN `clean inventary  data`C
+ON C.`Order Number`=P.`Order Number`
+WHERE C.`Date` >= DATE_FORMAT(CURDATE(), '%Y-%m-01') AND C.`Date` <= CURDATE();
+
+-- -------------------------------------------- YTD
+SELECT 
+    COALESCE(SUM(P.`Sales Amount`), 0) AS YTD_Sales
+FROM `f_point_of_sale(sql)` P
+JOIN `clean inventary  data` C
+  ON C.`Order Number` = P.`Order Number`
+WHERE 
+  C.`Date` >= DATE_FORMAT(CURDATE(), '%Y-01-01')
+  AND C.`Date` <= CURDATE();
+
+
+-- -------------------------------------- QTD 
+
+SELECT 
+    COALESCE(SUM(P.`Sales Amount`), 0) AS QTD_Sales
+FROM `f_point_of_sale(sql)` P
+JOIN `clean inventary  data` C
+  ON C.`Order Number` = P.`Order Number`
+  WHERE 
+  DATE(STR_TO_DATE(C.`Date`, '%Y-%m-%d')) >= MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL QUARTER(CURDATE())*3 - 3 MONTH
+  AND DATE(STR_TO_DATE(C.`Date`, '%Y-%m-%d')) <= CURDATE();
+
+
+-- ------------------------------------- SALES GROWTH %
+SELECT
+STR_TO_DATE(C.`Date`, '%m-%d-%Y') AS SALE_DAY,
+P.`Sales Amount` AS TOTAL_SALES,
+LAG(P.`Sales Amount`) OVER (PARTITION BY STR_TO_DATE(MONTHNAME(C.`DATE`),'%m-%d-%Y') ORDER BY STR_TO_DATE(YEAR (C.`DATE`),'%m-%d-%Y') ) AS PREV_YR_SALES ,
+CASE 
+WHEN LAG(P.`Sales Amount`) OVER (PARTITION BY STR_TO_DATE(MONTHNAME(C.`DATE`),'%m-%d-%Y') ORDER BY STR_TO_DATE(YEAR (C.`DATE`),'%m-%d-%Y') ) IS NULL THEN NULL
+ELSE ROUND(
+(P.`Sales Amount` - LAG (P.`Sales Amount`) OVER (PARTITION BY STR_TO_DATE(MONTHNAME(C.`DATE`),'%m-%d-%Y') ORDER BY STR_TO_DATE(YEAR (C.`DATE`),'%m-%d-%Y')))
+/ LAG(P.`Sales Amount`) OVER(PARTITION BY STR_TO_DATE(MONTHNAME(C.`DATE`),'%m-%d-%Y') ORDER BY STR_TO_DATE(YEAR (C.`DATE`),'%m-%d-%Y') ) * 100 , 2
+)
+END AS YOY_SALES_GROWTH
+FROM `f_point_of_sale(sql)` P 
+JOIN `clean inventary  data` C
+ON P.`Order Number`= C.`Order Number`
+ORDER BY STR_TO_DATE(YEAR(C.`Date`),'%m-%d-%Y')DESC;
+
+
+
+
+
+-- ---------------------------------------------------- AVG ORDER VALUE
+SELECT CONCAT("$ ",ROUND( AVG(`Sales Amount`),2)) AS AVG_ORDER_VALUE FROM `f_point_of_sale(sql)`;
+SELECT CONCAT("$ ",ROUND( SUM(`Sales Amount`) / COUNT(`Order Number`),2)) AS avg_order_value FROM `f_point_of_sale(sql)`;
+
+
+-- --------------------------------- PRODUCT WISE SALES -----------------------------------------------------
+
+-- -- TOP PERFORMING
+
+ -- PRODUCT TYPE WISE 
+ SELECT D.`Product Type`,CONCAT("$ ", SUM(P.`Sales Amount`) )AS TOTAL_SALES FROM `f_point_of_sale(sql)` P 
+ JOIN `d_product(sql)` D ON D.`Product Key`=P.`Product Key`
+ GROUP BY D.`Product Type` 
+ ORDER BY TOTAL_SALES DESC
+ LIMIT 1;
+ 
+ 
+ -- PRODUCT FAMILY  
+ SELECT D.`Product Family`,CONCAT("$ ", SUM(P.`Sales Amount`)) AS TOTAL_SALES FROM `f_point_of_sale(sql)` P 
+ JOIN `d_product(sql)` D ON D.`Product Key`=P.`Product Key`
+ GROUP BY D.`Product Family` 
+ ORDER BY TOTAL_SALES DESC
+ LIMIT 1;
+ 
+ -- PRODUCT NAME WISE (TOP 10)
+ SELECT D.`Product Name`,CONCAT("$ ", SUM(P.`Sales Amount`)) AS TOTAL_SALES FROM `f_point_of_sale(sql)` P 
+ JOIN `d_product(sql)` D ON D.`Product Key`=P.`Product Key`
+ GROUP BY D.`Product Name`
+ ORDER BY TOTAL_SALES DESC 
+ LIMIT 10;
+ 
+
+-- -- LEAST performing )
+
+-- PRODUCT TYPE 
+ SELECT D.`Product Type`,CONCAT("$ ", SUM(P.`Sales Amount`) )AS TOTAL_SALES FROM `f_point_of_sale(sql)` P 
+ JOIN `d_product(sql)` D ON D.`Product Key`=P.`Product Key`
+ GROUP BY D.`Product Type` 
+ ORDER BY TOTAL_SALES 
+ LIMIT 1;
+ 
+ -- PRODUCT FAMILY 
+ SELECT D.`Product Family`,CONCAT("$ ", SUM(P.`Sales Amount`)) AS TOTAL_SALES FROM `f_point_of_sale(sql)` P 
+ JOIN `d_product(sql)` D ON D.`Product Key`=P.`Product Key`
+ GROUP BY D.`Product Family` 
+ ORDER BY TOTAL_SALES  
+ LIMIT 1;
+ 
+ -- PRODUCT NAME WISE (BOTTOM 10)
+ SELECT D.`Product Name`,CONCAT("$ ", SUM(P.`Sales Amount`)) AS TOTAL_SALES FROM `f_point_of_sale(sql)` P 
+ JOIN `d_product(sql)` D ON D.`Product Key`=P.`Product Key`
+ GROUP BY D.`Product Name`
+ ORDER BY TOTAL_SALES ASC 
+ LIMIT 10;
+  
+ 
+-- --------------------------------------------------- -- Daily Sales Trend:
+
+ SELECT STR_TO_DATE(C.`Date`, '%m-%d-%Y') AS SALE_DAY,
+ CONCAT("$ ",SUM(P.`Sales Amount`) )AS TOTAL_SALES 
+ FROM `clean inventary  data` C 
+ JOIN `f_point_of_sale(sql)` P 
+ ON P.`Order Number`=C.`Order Number`
+ GROUP BY SALE_DAY
+ ORDER BY SALE_DAY;
+ 
+ 
+ 
+ -- ------------------------------------------------------STATE WISE SALES
+ SELECT CX.`Cust State` AS STATE , CONCAT("$ ",SUM(P.`Sales Amount`) )AS TOTAL_SALES
+ FROM `d_customer(sql)` CX 
+ JOIN `clean inventary  data` C 
+ ON CX.`Cust Key`=C.`Cust Key`
+ JOIN `f_point_of_sale(sql)` P
+ ON C.`Order Number`= P.`Order Number`
+ GROUP BY STATE 
+ ORDER BY TOTAL_SALES DESC;
+ 
+ 
+-- ------------------------------------------------TOP5 STORE WISE SALES
+SELECT ST.`Store Name` AS STORE , CONCAT("$ ",SUM(P.`Sales Amount`) )AS TOTAL_SALES
+FROM `d_store(sql)` ST 
+JOIN  `clean inventary  data` C 
+ ON ST.`Store Key`=C.`Store Key`
+ JOIN `f_point_of_sale(sql)` P
+ ON C.`Order Number`= P.`Order Number`
+ GROUP BY STORE
+ ORDER BY TOTAL_SALES DESC
+ LIMIT 5;
+ 
+ 
+ -- ---------------------------------------------------Region Wise Sales:
+SELECT CX.`Cust Region` AS REGION , CONCAT("$ ",SUM(P.`Sales Amount`) )AS TOTAL_SALES
+ FROM `d_customer(sql)` CX 
+ JOIN `clean inventary  data` C 
+ ON CX.`Cust Key`=C.`Cust Key`
+ JOIN `f_point_of_sale(sql)` P
+ ON C.`Order Number`= P.`Order Number`
+ GROUP BY REGION 
+ ORDER BY TOTAL_SALES DESC;
+ 
+ -- ---------------------------------------------------INVENTORY
+ -- TOTAL inventory 
+ SELECT SUM(`Quantity on Hand`) AS total_inventory FROM `f_inventory_adjusted(sql)`;
+ 
+ -- INVENTORY VALUE
+ SELECT `Product Key`, `Product Name`,CONCAT("$ ",ROUND(`Quantity on Hand`*`Cost Amount`,2)) AS INVENTORY_VALUE   FROM `f_inventory_adjusted(sql)`;
+ 
+ -- TOTAL INVENTORY VALUE
+ SELECT CONCAT("$ ",ROUND(SUM(`Quantity on Hand`*`Cost Amount`),2))AS INVENTORY_VALUE FROM `f_inventory_adjusted(sql)`;
+ 
+ -- ----------------------------------------------------------TOTAL SKU 
+ SELECT COUNT(`Sku Number`) AS TOTAL_SKUs FROM `d_product(sql)`;
+ SELECT * FROM `f_inventory_adjusted(sql)`;
+ 
+
+
+-- ---------------------------------------------------PURCHASE METHOD WISE SALES 
+SELECT C.`Purchase Method` , CONCAT("$ ", ROUND(SUM(P.`Sales Amount`),2)) AS TOTAL_SALES
+FROM `clean inventary  data` C
+JOIN `f_point_of_sale(sql)` P
+ON C.`Order Number`=P.`Order Number`
+GROUP BY `Purchase Method`
+ORDER BY TOTAL_SALES DESC ;
+
+
+
+ 
+ -- ------------------------------------------Overstock, Out-of-stock, Under-stock:
+
+ SELECT
+  `Product Key`,
+  `Product Name`,
+  `Quantity on Hand`,
+  `Minimum Stock Quantity`,
+  `Desired Stock Quantity`,
+  CASE
+    WHEN `Quantity on Hand` < 0 THEN 'Out-of-stock'
+    WHEN `Quantity on Hand` < `Desired Stock Quantity` THEN 'Under-stock'
+    WHEN `Quantity on Hand` >= `Minimum Stock Quantity` THEN 'In-stock'
+    ELSE 'CHECK'
+  END AS Inventory_Status
+FROM `f_inventory_adjusted(sql)`;
+
+
+-- --------- TOTAL QUANTITY SOLD
+SELECT CONCAT (SUM(`Sales Quantity`), "  units") AS TOTAL_QTY_SOLD FROM `f_point_of_sale(sql)`;
+
+-- ----------- 	Profit Margin % 
+select concat(round((((sum(`Sales Amount`)-sum(`Cost Amount`))*100)/sum(`Sales Amount`)),2)," %") as PROFIT_MARGIN from `f_point_of_sale(sql)`;
+
+-- ----------------Average Selling Price 
+SELECT CONCAT("$ ",ROUND(SUM(`Sales Amount`)/SUM(`Sales Quantity`),2)) AS AVG_SELLING_PRICE FROM `f_point_of_sale(sql)`;
+
+-- ------------------- PROFIT MARGIN BY REGION
+select `Cust Region` AS REGION , concat(round((((sum(P.`Sales Amount`)-sum(P.`Cost Amount`))*100)/sum(P.`Sales Amount`)),2)," %") as PROFIT_MARGIN 
+from `f_point_of_sale(sql)` P 
+JOIN `clean inventary  data` C 
+ON C.`Order Number`=P.`Order Number`
+JOIN `d_customer(sql)` CX
+ON CX.`Cust Key`=C.`Cust Key` 
+GROUP BY REGION 
+ORDER BY PROFIT_MARGIN DESC ;
+
+-- -------------------------------------SALES BY CUSTOMER TYPE
+select `Cust Type` AS CUSTOMER_TYPE , concat("$ ",round(sum(P.`Sales Amount`),2)) as TOTAL_SALES 
+from `f_point_of_sale(sql)` P 
+JOIN `clean inventary  data` C 
+ON C.`Order Number`=P.`Order Number`
+JOIN `d_customer(sql)` CX
+ON CX.`Cust Key`=C.`Cust Key` 
+GROUP BY CUSTOMER_TYPE
+ORDER BY TOTAL_SALES  ;
+
+-- ------------------------------------- AVG SALES PER PRODUCT 
+SELECT CONCAT("$ ",ROUND(SUM(`Sales Amount`)/COUNT(`Product Key`),2)) AS AVG_SALES_PER_PRODUCT FROM `f_point_of_sale(sql)`;
+
+-- ------------------------------------- 	Stock Turnover Ratio 
+SELECT YEAR(STR_TO_DATE(C.`Date`, '%m-%d-%Y')) AS YR , CONCAT(ROUND((sum(P.`Sales Quantity`)*100)/SUM(I.`Quantity on Hand`),2)," %") AS STOCK_TURNOVER_RATIO
+FROM `f_point_of_sale(sql)` P 
+JOIN `f_inventory_adjusted(sql)` I 
+ON P.`Product Key`=I.`Product Key`
+JOIN `clean inventary  data` C 
+ON P.`Order Number`=C.`Order Number`
+GROUP BY YR
+ORDER BY YR;
+
+-- ----------------------------------	Top 10 SKUs by Margin 
+SELECT I.`Sku Number` , 
+concat(round((((sum(P.`Sales Amount`)-sum(P.`Cost Amount`))*100)/sum(P.`Sales Amount`)),2)," %") as PROFIT_MARGIN 
+from `f_point_of_sale(sql)` P
+JOIN `f_inventory_adjusted(sql)` I 
+ON I.`Product Key`=P.`Product Key`
+GROUP BY `Sku Number`
+ORDER BY PROFIT_MARGIN DESC
+LIMIT 10;
+
+
+-- -------------------------------- TOTAL CUSTOMERS 
+SELECT COUNT(DISTINCT `Cust Key`) AS TOTAL_CUSTOMER FROM `d_customer(sql)`;
+
+
+-- -------------------------------- 	Active Loyalty Members 
+SELECT SUM(`Loyalty Program`) FROM `d_customer(sql)`;
+
+-- -------------------------------- AVG CUSTOMER AGE
+SELECT ROUND(AVG(`Cust Age`),2) AS AVG_CUSTOMER_AGE FROM `d_customer(sql)`;
+
+-- --------------------------------	Customer Lifetime Value (CLV) 
+SELECT SUM(P.`Sales Amount`) / COUNT(DISTINCT C.`Cust Key`) AS CLV FROM `f_point_of_sale(sql)` P 
+JOIN `clean inventary  data` C 
+ON C.`Order Number`=P.`Order Number`;
+
+-- ----------------------------------- 	Sales by Customer Age 
+select `Cust Age` AS CUSTOMER_AGE , concat("$ ",round(sum(P.`Sales Amount`),2)) as TOTAL_SALES 
+from `f_point_of_sale(sql)` P 
+JOIN `clean inventary  data` C 
+ON C.`Order Number`=P.`Order Number`
+JOIN `d_customer(sql)` CX
+ON CX.`Cust Key`=C.`Cust Key` 
+GROUP BY CUSTOMER_AGE
+ORDER BY  TOTAL_SALES DESC ;
+
+-- ------------------------------------SALES BY GENDER
+select `Cust Gender` AS GENDER , concat("$ ",round(sum(P.`Sales Amount`),2)) as TOTAL_SALES 
+from `f_point_of_sale(sql)` P 
+JOIN `clean inventary  data` C 
+ON C.`Order Number`=P.`Order Number`
+JOIN `d_customer(sql)` CX
+ON CX.`Cust Key`=C.`Cust Key` 
+GROUP BY GENDER
+ORDER BY  TOTAL_SALES DESC ;
+
+-- ------------------------------------ 	Customer Distribution by Region 
+SELECT `Cust Region` , COUNT(DISTINCT(`Cust Key`)) AS TOTAL_CUSTOMER FROM `d_customer(sql)` 
+GROUP BY `Cust Region`
+ORDER BY TOTAL_CUSTOMER ;
+
+-- -------------------------------------- 	Top 10 Loyal Customers by Spend 
+SELECT CX.`Cust Name` AS CUSTOMER , concat("$ ",round(sum(P.`Sales Amount`),2)) as TOTAL_SALES 
+from `f_point_of_sale(sql)` P 
+JOIN `clean inventary  data` C 
+ON C.`Order Number`=P.`Order Number`
+JOIN `d_customer(sql)` CX
+ON CX.`Cust Key`=C.`Cust Key`
+WHERE CX.`Loyalty Program`=1 
+GROUP BY CUSTOMER
+ORDER BY  TOTAL_SALES DESC 
+LIMIT 10;
+
+
+-- ------------------------------------------- CIVIL STATUS VS AVG SPEND 
+select `Civil Status` , concat("$ ",round(SUM(P.`Sales Amount`),2)) as TOTAL_SALES , 
+concat("$ ",round(AVG(P.`Sales Amount`),2)) as AVG_SPEND
+from `f_point_of_sale(sql)` P 
+JOIN `clean inventary  data` C 
+ON C.`Order Number`=P.`Order Number`
+JOIN `d_customer(sql)` CX
+ON CX.`Cust Key`=C.`Cust Key` 
+GROUP BY `Civil Status`
+ORDER BY  TOTAL_SALES DESC ;
+
+-- -------------------------------------------- 	Total Stores 
+SELECT SUM(`Store Key`) AS Total_Stores FROM `d_store(sql)`;
+
+-- --------------------------------------------	Average Monthly Sales per Store 
+SELECT CONCAT(YEAR(str_to_date(C.`Date`, '%m-%d-%Y')), "  " , MONTHNAME(str_to_date(C.`Date`, '%m-%d-%Y'))) AS MONTH_NAME, 
+CONCAT("$ ",ROUND(SUM(P.`Sales Amount`),2)) AS TOTAL_SALES ,CONCAT("$ ", ROUND(AVG(P.`Sales Amount`),2)) AS AVG_SALES
+FROM `f_point_of_sale(sql)` P 
+JOIN `clean inventary  data` C 
+ON C.`Order Number`=P.`Order Number`
+JOIN `d_store(sql)` S 
+ON S.`Store Key`=C.`Store Key`
+GROUP BY MONTH_NAME
+ORDER BY MONTH_NAME;
+
+
+-- ------------------------------------------- AVG RENT COST
+SELECT CONCAT("$ " , ROUND(AVG( `Monthly Rent Cost`),2)) AS AVG_RENT_COST FROM `d_store(sql)`;
+
+-- ------------------------------------------- 	Avg. Employee Productivity 
+SELECT CONCAT("$ ",ROUND( SUM(P.`Sales Amount`) / SUM(S.`Number of Employees`),2)) AS AVG_Ee_PRODUCTIVITY
+FROM `d_store(sql)` S 
+JOIN `clean inventary  data` C 
+ON C.`Store Key`=S.`Store Key`
+JOIN `f_point_of_sale(sql)` P 
+ON P.`Order Number`=C.`Order Number`;
+
+-- -------------------------------------------- 	Top 10 Stores by Profit 
+SELECT S.`Store Name` AS STORE , concat("$ ",round(sum(P.`Sales Amount`-P.`Cost Amount`),2)) as TOTAL_PROFIT 
+from `f_point_of_sale(sql)` P 
+JOIN `clean inventary  data` C 
+ON C.`Order Number`=P.`Order Number`
+JOIN `d_store(sql)` S
+ON S.`Store Key`= C.`Store Key`
+GROUP BY STORE
+ORDER BY  TOTAL_PROFIT DESC 
+LIMIT 10;
+
